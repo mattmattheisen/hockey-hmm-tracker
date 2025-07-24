@@ -1,5 +1,3 @@
-# main.py
-
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -16,7 +14,7 @@ st.title("🏒 High School Hockey HMM Tracker")
 st.markdown("""
 **What are Hidden States?**  
 This app uses a Hidden Markov Model to infer your team’s underlying performance patterns from game stats.  
-Each *hidden state* represents a distinct mode of play, for example:
+Each *hidden state* represents a distinct mode of play:
 - **Locked‑In**: High offense & possession, low penalties.
 - **Improving**: Upward trend in shots and faceoff wins.
 - **Fatigued**: Late‑game drop‑offs, higher penalty minutes.
@@ -29,7 +27,7 @@ Use these insights to tailor practices and tactics each week.
 # ——— Sidebar ————————————————————————————————————————————————————————
 st.sidebar.title("Hockey HMM Settings")
 uploaded_file = st.sidebar.file_uploader("Upload game stats CSV", type=["csv"])
-n_states = st.sidebar.slider("Number of Hidden States", min_value=2, max_value=5, value=3)
+n_states = st.sidebar.slider("Number of Hidden States", 2, 5, 3)
 if uploaded_file:
     st.sidebar.markdown("""
 **CSV must include these columns:**
@@ -58,8 +56,7 @@ model = hmm.GaussianHMM(n_components=n_states,
                         n_iter=100,
                         random_state=42)
 model.fit(X)
-states = model.predict(X)
-df['State'] = states
+df['State'] = model.predict(X)
 
 # ——— Label States ————————————————————————————————————————————————————————
 means = model.means_
@@ -80,8 +77,7 @@ descriptions = {
     "Demoralized":   "High goals against & penalties. Reinforce fundamentals & morale.",
     "Overconfident": "Good scoreline but sloppy fundamentals. Reinforce discipline."
 }
-tips = descriptions.copy()
-df['CoachNote'] = df['StateLabel'].map(lambda L: tips[L])
+df['CoachNote'] = df['StateLabel'].map(descriptions)
 
 # ——— Legend & Trend ——————————————————————————————————————————————————————
 st.subheader("🔑 State Legend & Coaching Tips")
@@ -91,6 +87,17 @@ for label in state_label_map.values():
 last_states = df['StateLabel'].tail(3).tolist()
 trend = " → ".join(last_states)
 st.markdown(f"**Current Trend (last 3 games):** {trend}")
+
+# ——— Hidden State Over Time Chart ————————————————————————————————————————
+st.subheader("📈 Hidden State Over Time")
+fig1 = px.line(df, x='GameDate', y='State', markers=True,
+               title="Hidden State by Game (y-axis = numeric state)")
+st.plotly_chart(fig1, use_container_width=True)
+
+# ——— Chart Legend ——————————————————————————————————————————————————————
+st.subheader("📋 Hidden State Chart Legend")
+for old in sorted(state_label_map):
+    st.markdown(f"- **State {old}**: {state_label_map[old]}")
 
 # ——— Emoji‑Coded Table ————————————————————————————————————————————————————
 emojis = {
@@ -106,10 +113,8 @@ st.subheader("Game Stats & Coach Notes")
 display_cols = ['GameDate','Opponent','Venue'] + features + ['StateEmoji','StateLabel','CoachNote']
 st.dataframe(df[display_cols])
 
-# ——— Charts —————————————————————————————————————————————————————————————
-fig1 = px.line(df, x='GameDate', y='State', markers=True, title="Hidden State Over Time")
-st.plotly_chart(fig1, use_container_width=True)
-
+# ——— State Distribution Chart —————————————————————————————————————————————
+st.subheader("📊 State Distribution")
 counts = df['StateLabel'].value_counts().reindex(friendly_names[:n_states], fill_value=0)
 fig2 = px.bar(x=counts.index, y=counts.values,
               labels={'x':'Hidden State','y':'Game Count'},
@@ -119,17 +124,13 @@ st.plotly_chart(fig2, use_container_width=True)
 # ——— Download Multi‑Sheet Excel ——————————————————————————————————————————
 buffer = BytesIO()
 with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-    # Data sheet
     df[display_cols].to_excel(writer, sheet_name="Data", index=False)
-    # Legend sheet
     pd.DataFrame([
-        {"State": label, "Description": descriptions[label], "Tip": tips[label]}
+        {"State": label, "Description": descriptions[label]}
         for label in state_label_map.values()
     ]).to_excel(writer, sheet_name="Legend", index=False)
-    # Summary sheet
     pd.DataFrame({"State": counts.index, "Count": counts.values}) \
       .to_excel(writer, sheet_name="Summary", index=False)
-    writer.save()
 buffer.seek(0)
 
 st.download_button(
