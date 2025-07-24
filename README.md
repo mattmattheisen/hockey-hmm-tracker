@@ -16,4 +16,9 @@ A Streamlit app that uses a Hidden Markov Model to infer hidden performance stat
    ```bash
    git clone https://github.com/<your‑username>/hockey-hmm-tracker.git
    cd hockey-hmm-tracker
+python -m venv .env
+source .env/bin/activate   # macOS/Linux
+.env\Scripts\activate      # Windows
+pip install -r requirements.txt
+streamlit run main.py
 
